@@ -1,0 +1,93 @@
+name: Upgrade scene notes to v2.4.0
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  upgrade:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Add scene notes and verify preservation
+        shell: python
+        run: |
+          import hashlib, json, os, re, subprocess
+          from pathlib import Path
+          root = Path.cwd()
+          name = 'fengqi-linglonggu-sd2-prompt-v2'
+          plugin = root / 'plugins' / name
+          skill = plugin / 'skills' / name
+          manifest_path = plugin / '.codex-plugin/plugin.json'
+          manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+          assert manifest['version'] == '2.3.0', 'This one-time migration requires version 2.3.0'
+          before = {p: hashlib.sha256(p.read_bytes()).hexdigest() for p in skill.rglob('*') if p.is_file()}
+          entry = skill / 'SKILL.md'
+          original = entry.read_bytes().decode('utf-8')
+          eol = '\r\n' if '\r\n' in original else '\n'
+          def exact_replace(text, old, new):
+              assert text.count(old) == 1, f'Expected exactly one migration anchor: {old[:100]}'
+              return text.replace(old, new, 1)
+          
+          router = "## 场记任务路由 / Scene Notes\n\nFor requests to 建立场记、启用场记、读取场记、更新场记、保存这场的要求、继续本场、持续维护场记, or when relevant scene memory is already enabled, read [references/scene-notes.md](references/scene-notes.md). Create only on explicit scene-saving authorization, using [references/scene-notes-template.md](references/scene-notes-template.md); the runtime file is 场次记忆.md in the user's current scene project, never in this skill, plugin repository, references, or global memory. This is a self-contained file-based capability and does not require the reference plugin.\n\nClassify a memory-only request before the prompt-repair preflight below: editing a memory entry does not require a complete generator prompt and does not trigger target-model resolution, character-canon lookup unless needed, the six-section package, or prompt linting. For a combined memory and prompt request, fulfill both authorized parts while retaining all existing generator rules. Ordinary generation does not enable persistent writing; existing memory defaults to explicit maintenance unless the user enabled continuous maintenance for this scene.\n\nCurrent explicit user facts override old scene notes. Inherit only active entries for the same scene, shot/story point and branch. Keep approved design separate from observed footage, record adopted versions and concrete shot junctions, and label unobserved outcomes as expected/unverified. Notes or summaries never substitute for the exact baseline required by preservation-first prompt repair. Read an adopted full prompt file verbatim when available; never reconstruct its frozen text from notes. In patch-only replies, emit only the requested replacement span; authorized scene-note maintenance adds no wrapper or report to that reply.\n\nMemory-only delivery reports the actual file path and changes after a successful save/readback. Prompt delivery keeps the original 瑞宝PRO six-section / nine-heading / 5000-character contract; scene notes do not import the reference plugin's four-block format. No runtime scene record is created as part of installing or upgrading this plugin.\n\n".replace('\n', eol)
+          updated = exact_replace(original, '# 风起玲珑骨-SD2.0/2.5提示词-V2.3', '# 风起玲珑骨-SD2.0/2.5提示词-V2.4')
+          updated = exact_replace(updated, '生成视频返修与逐字冻结局部改写。', '生成视频返修与逐字冻结局部改写，以及本场场记的建立、读取、更新与持续维护。')
+          updated = exact_replace(updated, '## Preservation-First Local Repair Precedence', router + '## Preservation-First Local Repair Precedence')
+          updated = exact_replace(updated, 'Obtain the exact complete baseline from the current message or exact task history.', 'Obtain the exact complete baseline from the current message, exact task history, or a user-adopted complete prompt file read verbatim.')
+          # Prove all original instruction text outside the four intended edits is unchanged.
+          restored = updated.replace(router, '', 1).replace('# 风起玲珑骨-SD2.0/2.5提示词-V2.4', '# 风起玲珑骨-SD2.0/2.5提示词-V2.3', 1).replace('生成视频返修与逐字冻结局部改写，以及本场场记的建立、读取、更新与持续维护。', '生成视频返修与逐字冻结局部改写。', 1).replace('Obtain the exact complete baseline from the current message, exact task history, or a user-adopted complete prompt file read verbatim.', 'Obtain the exact complete baseline from the current message or exact task history.', 1)
+          assert restored == original, 'Unexpected changes to existing generator instructions'
+          entry.write_bytes(updated.encode('utf-8'))
+          (skill / 'references/scene-notes.md').write_text("# 场记：当前场次的制作记忆\n\n场记用一份场次记忆.md保存《风起玲珑骨》当前场次的有效要求、采用版本、镜头接点与制作进度。它是可续做的制作备忘录，不是聊天归档、剧本正典或新的提示词格式。设计参考“横屏影视提示词 Agent 2.0”的场次记忆机制，运行时不依赖安装该插件。\n\n## 入口与保存位置\n\n- “建立场记”“启用本场场记”“保存这场的要求”：明确授权后建立文件；普通生成、一次返修或一句“继续下一镜”不自动新建。\n- “读取场记”“继续这一场”：先核对作品、集数／场次与适用目录，再读取续做摘要、全场要求及当前镜头相关状态；只读不自动写入。\n- “更新场记”“记住这个改法”“后面保持”：已有场记按授权范围合并；初次使用时，只有明确要求把本场要求保存为场记才建文件。\n- “本场持续维护场记”：为当前场次开启持续维护；“暂停维护”停止自动写入；“不再使用场记”同时停止继承，恢复需明确要求。\n\n优先使用用户指定的场次项目根目录，否则使用当前工作目录；目标只有该目录下的场次记忆.md。先确认这里确实是本场制作目录。若当前目录是插件安装目录、插件源码仓库或包含多场且归属不明的总目录，不写进去，先说明需要本场目录。已有文件属于另一场时不覆盖、不混用；多场各放各自的场次目录。路径明确、当前场次明确就直接执行，不重复确认。\n\n首次创建按[场记模板](scene-notes-template.md)填已知信息；空项保持待确认，不为了填表编造或中断创作。兼容已有场次记忆.md，不强制迁移和重建。旧文件未写维护方式时默认“明确维护”；被明确停用的旧记录不因文件仍存在而重新启用。\n\n## 两种维护方式\n\n**明确维护（默认）**：只在用户要求保存、继承、更正或撤回已记录内容时写入；只读、讨论、一次普通返修不自动写入。一次镜头调整只作用于指定镜头，不升级为全场规则。\n\n**本场持续维护**：用户明确开启后，在本场后续工作中保存已确认要求、已选定版本和制作进度，不逐次索要授权。未经采用的创意只在确有续做需要时列为待定，不进入有效要求。持续维护只覆盖当前场次，不授权制作下一镜、改插件、提交或上传文件。\n\n## 记录内容\n\n1. **场次归属**：作品、集数／场号、适用目录、已有镜号／视频条号、剧本与资产位置、目标模型版本。镜头与视频条是两层编号，沿用用户命名；一条视频内可包含多个镜头。\n2. **有效要求**：具体画面、对白、动作、表演、机位、光影、禁项及其适用镜号／故事时点／方案；标明必要来源。只记录真正影响续做的内容，保留细节。\n3. **采用版本**：对象、选定文件或版本、参考用途、用户选择依据。没有版本号可记文件名；不按文件时间或生成先后自动改用“最新”。提示词、参考图和成片分别记录。\n4. **连续性接点**：位置、朝向、姿态、动作阶段、视线、情绪强度、身体版本／伤势、持物与手别、空间轴线、环境、光源和特效余态。只填写对当前与后续镜头有意义的项目。\n5. **进度与续做**：提示词已完成、候选已生成、用户已采用、成片已核验分别记录；写清待验证、待返修和下一步。它们不是必须逐级审批的流程，待办不等于执行授权。\n\n素材记文件名／路径／版本与用途，不将某轮的 @图片 N、@视频 N 编号永久绑定。新一轮仅按实际提供且可用的素材重新编号；旧路径不能证明当前已上传或自己已看过。目标模型与摄影设置留在场记和镜头设计摘要中，不能因此塞进生成提示词的禁用元数据位置。\n\n## 设计与成片分开\n\n每个关键接点分别记录：\n\n- 设计目标／批准情况：用户确定的动作和终态；没有成片依据时写“预计，待验证”。\n- 实际观察／来源：亲自查看的成片、用户明确描述或对应项目资料；附采用文件、版本及必要的秒数／帧位置。\n\n用户选定方案不等于动作已经生成；用户描述不能写成自己看片核验；文件存在不能证明画面内容。尚无成片可继续设计下一条，不能强制用户先补视频。\n\n按场次、镜号／故事时点和方案分支区分状态，不以维护日期排序剧情。镜2握瓶与镜5放瓶可以同时有效；返修前镜不能用“最新状态”覆盖后镜。区分角色自身左右、画面左右和场景方位，稳定光源绑定场景位置，正反打按实际机位换算。\n\n前镜采用版本或终态变化时，只检查依赖它的后镜接点，标“待复核”及影响原因，不擅自重写后镜。新设计目标可以与旧成片观察并存，旧成片只提供返修依据，不阻止用户改稿。\n\n## 继承、局部返修与冲突\n\n当前用户明确要求优先于旧场记。仅继承仍有效且适用于当前镜号、故事时点和方案的内容；待定建议、撤回项和已被替代的版本不继承。场记不修改项目正典，不引入尚未发生的剧情；当前用户明确改编可记为本场设计偏离。\n\n完整提示词仍按原技能的瑞宝PRO六段交付包、九个内部标题、逐镜摄影头部和5000字符上限交付；场记不采用参考插件的四区块格式。\n\n“只改镜头X，其余不动”时仍先遵守逐字冻结规则。场记只能提供背景依据，不能补写或整理冻结区。需要上一版完整提示词时，读取用户已采用的完整提示词文件原文或取得完整消息；场记摘要、路径、旧接点都不能替代可逐字比较的基线。若用户只要替换段，就只返回替换段；已授权的场记维护在文件中完成，不往替换段附加场记报告。\n\n只修改场记某一项时，按指定记忆范围合并，不触发视频提示词基线检查或强制生成六段包。未请求生成或返修时不顺带生成提示词；同时请求续做则完成授权的创作部分。\n\n## 合并与保存\n\n写前读取原文件和相关有效内容，核对归属；保留未涉及的有效条目。对同一对象、范围、故事时点和方案中的冲突，以用户最新明确要求替代旧要求，重要替代简记理由。全场要求与单镜例外可同时成立，例如“全场无泪，镜7除外”。重复内容不重复追加。\n\n有效改法须有结果依据与适用条件；未验证尝试留待定。撤回项退出有效区；用户明确要求删除某项时，从本文件有效区、经验及变更记录一并清除，不复制到历史区继续保留；不声称同时清除了外部聊天或版本历史。\n\n提交写入前检查文件是否被其他任务改动；变动则重读合并，不用旧副本覆盖，也不声称已经实现并发锁。保存后回读验证新内容与未改内容，再简短报告实际路径和变化。无变化不写；读取／保存失败时不猜旧内容、不用空模板覆盖原件、不虚报已记住，说明失败并继续可独立完成的创作。\n\n## 数据边界\n\n只在使用者当前场次项目中保存实际场记，不写入SKILL.md、插件仓库、references、其他场次或Codex全局记忆。不自动Git提交、上传、跨电脑同步，不建立数据库、后台进程或每轮历史快照。插件升级仅更新规则与模板，不触碰用户场记。跨电脑续做由用户自行携带场次记忆.md和相关素材，并在新任务中明确提供路径；不承诺宿主自动加载或每次压缩前自动保存。\n\n## 行为核对示例\n\n| 当前请求或状态 | 应有行为 |\n|---|---|\n| 生成下一镜，尚未启用场记 | 完成提示词，不新建记忆文件 |\n| 建立本场场记，仅有已批准提示词 | 保存设计目标，成片状态标预计待验证 |\n| 只读取场记 | 读取并说明当前状态，不写入 |\n| 只把场记里镜2改为右手持瓶 | 只改该条，不索要完整视频提示词，不改镜5 |\n| 持续维护中，镜2改用另一条视频 | 更新采用版本；仅依赖镜2的后镜标待复核 |\n| 只返回镜2替换段，同时已启用持续维护 | 冻结其余提示词；维护获授权记录，回复只含替换段 |\n| 场次文件属于另一集或另一场 | 不套用、不覆盖，澄清归属；独立创作继续 |\n| 暂停维护或无法保存 | 停止自动写入，说明必要情况，不停止制作 |\n", encoding='utf-8')
+          (skill / 'references/scene-notes-template.md').write_text("# 场次记忆\n\n> 当前场次的制作备忘录。只填已知且影响续做的信息；缺项留待确认。设计目标不等于成片事实。本文件不自动同步或改写插件。\n\n## 场次信息\n\n- 作品：风起玲珑骨\n- 集数／场次：待确认\n- 适用目录：待确认\n- 剧本／文字分镜位置：待确认\n- 主要人物与当前身份阶段：待确认\n- 场景与资产位置：待确认\n- 当前目标模型：待确认\n- 维护方式：明确维护\n- 使用状态：启用\n- 最近更新：待填写\n\n<!-- 持续维护需用户明确开启。暂停维护只停止自动写入；停用同时停止继承。 -->\n\n## 续做摘要\n\n- 当前镜号／视频条号／方案：待确认\n- 已完成：暂无已记录进度\n- 待验证／待返修：暂无已记录事项\n- 下一步：待确认\n\n## 当前有效要求\n\n- 暂无已记录要求。\n\n<!-- 每条记录具体要求、适用镜号／故事时点／方案和必要来源。保留全场要求与单镜例外。 -->\n\n## 当前采用版本\n\n- 暂无已选定版本。\n\n<!-- 分别记录提示词、图片、视频：对象／镜号、采用文件或版本、用途、选择依据。未选定候选不当成采用版，不固定某轮上传编号。 -->\n\n## 连续性接点\n\n- 暂无已记录接点。\n\n<!-- 按需添加已有镜号／接点：\n### 镜号／视频条号／故事时点／方案\n- 设计目标与批准情况：……；没有成片依据时标“预计，待验证”。\n- 实际观察：……／尚无依据。\n- 观察依据：亲自看片／用户描述／项目资料；文件、版本、必要时间点。\n- 人物与表演：位置、朝向、身体版本、动作阶段、视线、情绪强度。\n- 道具与环境：持物／手别、物件归属、环境变化和特效余态。\n- 镜头与光影：轴线、机位、场景方位与稳定光源。\n- 后续依赖／待复核：受影响镜号与原因／无。\n只填对该接点有实际作用的项目，不为填满而编造。\n-->\n\n## 制作进度\n\n- 暂无已记录进度。\n\n<!-- 按镜号／视频条分别记提示词完成、候选生成、用户采用、成片核验；不是强制审批流水线。 -->\n\n## 优化经验与待定尝试\n\n- 已验证经验：暂无。\n- 待定尝试：暂无。\n\n## 重要变更\n\n- 暂无。\n\n<!-- 简记关键替代、撤回的范围与理由。用户明确删除的内容不在这里留副本。 -->\n", encoding='utf-8')
+          agent_path = skill / 'agents/openai.yaml'
+          agent_original = agent_path.read_bytes().decode('utf-8')
+          agent_updated = exact_replace(agent_original, '风起玲珑骨-SD2.0/2.5提示词-V2.3', '风起玲珑骨-SD2.0/2.5提示词-V2.4')
+          agent_updated = exact_replace(agent_updated, '24集原文反查，人设场景剧情直出连续提示词', '24集剧本反查、场记续做与镜头接点维护，人设场景剧情直出连续提示词')
+          agent_updated = exact_replace(agent_updated, '核验《风起玲珑骨》剧情与人物状态', '使用 $fengqi-linglonggu-sd2-prompt-v2 核验《风起玲珑骨》剧情与人物状态')
+          agent_updated = exact_replace(agent_updated, '而不删台词、表演、动作与镜间承接。', '而不删台词、表演、动作与镜间承接；按用户授权建立或维护本场场记，分开记录设计目标与成片实际接点。')
+          agent_path.write_bytes(agent_updated.encode('utf-8'))
+          manifest['version'] = '2.4.0'
+          manifest['description'] += ' 支持本场场记、采用版本管理与跨镜连续性续做。'
+          manifest['interface']['displayName'] = '风起玲珑骨 · 影视提示词与场记 V2.4'
+          manifest['interface']['shortDescription'] = '24集剧本反查、影视提示词与本场场记，记录采用版本和跨镜接点'
+          manifest['interface']['longDescription'] += ' 场记按授权保存于当前场次项目，分别记录设计目标和成片观察，支持明确维护、持续维护、暂停与续做；不自动同步到插件仓库。'
+          manifest['interface']['defaultPrompt'][2] = '为《风起玲珑骨》当前场次建立场记，记录已确认要求、采用版本和镜头接点。'
+          manifest['keywords'].extend(['scene-notes', 'continuity'])
+          manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          readme_path = root / 'README.md'
+          readme = readme_path.read_text(encoding='utf-8')
+          readme = exact_replace(readme, '版本 **2.3.0**', '版本 **2.4.0**')
+          readme = exact_replace(readme, '## 使用示例', "## 场记：把一场戏接着做完\n\nv2.4.0 新增场记功能，设计参考“横屏影视提示词 Agent 2.0”的场次记忆机制；不需要同时安装参考插件。\n\n在你的**场次制作目录**中对 Codex 说：\n\n~~~text\n为《风起玲珑骨》第X集第X场建立场记，保存这场已经确认的要求。\n~~~\n\n常用指令：\n\n- “读取场记，告诉我做到哪里了”：读取，不自动改文件。\n- “这场持续维护场记”：此后保存本场已确认的要求、采用版本、接点和进度。\n- “更新场记：镜2改为右手持瓶，其他镜头不变”：只更新指定范围。\n- “按场记继续下一条”：继承本场有效状态，具体写清下一条如何衔接。\n- “暂停维护场记”：停止自动写入；“不再使用场记”同时停止继承。\n\n场记保存在该场次目录的 **场次记忆.md**。记录人物状态、采用的提示词／图片／视频、镜头接点、实际制作进度和待返修事项；明确区分“设计已批准”与“成片已实现”。没有成片依据的终态标为“预计，待验证”，不妨碍继续设计。\n\n普通生成不会自动建场记。场记不会写回插件、GitHub 仓库或 Codex 全局记忆，也不会自动跨电脑同步。换电脑续做时，携带该场记与相关素材，在新任务中明确提供文件路径。插件更新不会覆盖用户场记。\n\n详情见[场记指南](plugins/fengqi-linglonggu-sd2-prompt-v2/skills/fengqi-linglonggu-sd2-prompt-v2/references/scene-notes.md)。原有六段交付、局部逐字冻结及5000字符上限继续适用。\n\n" + '## 使用示例')
+          readme_path.write_text(readme, encoding='utf-8')
+          (plugin / 'README.md').write_text(readme.replace(f'(plugins/{name}/', '('), encoding='utf-8')
+          expected = ["SKILL.md","agents/openai.yaml","references/acting-performance.md","references/body-action-and-contact-grammar.md","references/camera-parameter-presets.md","references/canglanjue-episodes-01-36-visual-grammar.md","references/capability-regression-checklist.md","references/character-performance-bible.md","references/direct-multi-reference-video-template.md","references/eastern-fantasy-tv-visual-master.md","references/episode-script-retrieval.md","references/microexpression-acting-grammar.md","references/narrative-lighting-design.md","references/project-craft-defaults.md","references/seedance-2x-generator-translation.md","references/seedance-assembly.md","references/video-repair-loop.md","references/xianxia-action-grammar.md","references/xianxia-vfx-grammar.md","references/zhuyu-episodes-01-10-cinematography.md","references/scripts/corpus-manifest.json","references/scripts/scene-index.jsonl","references/scripts/episodes/episode-01.txt","references/scripts/episodes/episode-02.txt","references/scripts/episodes/episode-03.txt","references/scripts/episodes/episode-04.txt","references/scripts/episodes/episode-05.txt","references/scripts/episodes/episode-06.txt","references/scripts/episodes/episode-07.txt","references/scripts/episodes/episode-08.txt","references/scripts/episodes/episode-09.txt","references/scripts/episodes/episode-10.txt","references/scripts/episodes/episode-11.txt","references/scripts/episodes/episode-12.txt","references/scripts/episodes/episode-13.txt","references/scripts/episodes/episode-14.txt","references/scripts/episodes/episode-15.txt","references/scripts/episodes/episode-16.txt","references/scripts/episodes/episode-17.txt","references/scripts/episodes/episode-18.txt","references/scripts/episodes/episode-19.txt","references/scripts/episodes/episode-20.txt","references/scripts/episodes/episode-21.txt","references/scripts/episodes/episode-22.txt","references/scripts/episodes/episode-23.txt","references/scripts/episodes/episode-24.txt","references/scripts/originals/《风起玲珑骨》第1-5集【0628 定稿V2】TO AI组(1).pdf","references/scripts/originals/《风起玲珑骨》第11-15集【0705 定稿版 TO AI组】(1).pdf","references/scripts/originals/《风起玲珑骨》第16-24集【0705 定稿版 TO AI组】(1).pdf","references/scripts/originals/《风起玲珑骨》第6-10集【0628 定稿】TO AI组(1).pdf","scripts/build_script_corpus.py","scripts/lint_prompt.py","scripts/locate_script_passage.py","scripts/test_lint_prompt.py","scripts/fixtures/known-bad.txt","scripts/fixtures/known-good.txt","references/scene-notes.md","references/scene-notes-template.md"]
+          # Existing rules/resources and all scripts/PDFs remain byte-identical.
+          for path, digest in before.items():
+              if path not in {entry, agent_path}:
+                  assert hashlib.sha256(path.read_bytes()).hexdigest() == digest, f'Unexpected source modification: {path}'
+          for relative in expected:
+              assert (skill / relative).is_file(), f'Missing source resource: {relative}'
+          for doc in [entry, skill / 'references/scene-notes.md']:
+              for link in re.findall(r'\]\(([^)]+)\)', doc.read_text(encoding='utf-8-sig')):
+                  if not re.match(r'^[a-zA-Z]+:|^#', link):
+                      assert (doc.parent / link.split('#', 1)[0]).exists(), f'Broken reference: {link}'
+          assert not (root / '场次记忆.md').exists()
+          assert not list(plugin.rglob('场次记忆.md')), 'Do not publish runtime scene records'
+          subprocess.run(['python', '-B', '-m', 'unittest', 'discover', '-s', str(skill / 'scripts'), '-p', 'test_*.py', '-v'], check=True)
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
+              summary.write('## Scene notes v2.4.0 ready\n\n- Guide and template added; 58 source files present.\n- Existing prompt rules outside four intended edits are unchanged.\n- Existing reference resources, scripts and PDFs are byte-identical.\n- Skill and guide links resolve.\n- Existing prompt regression tests passed.\n- No runtime scene record created or published.\n')
+      - name: Commit verified plugin update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Add scene continuity notes and bump plugin to v2.4.0"
+          git push origin HEAD:main
