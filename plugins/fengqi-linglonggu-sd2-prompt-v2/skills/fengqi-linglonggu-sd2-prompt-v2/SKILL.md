@@ -1,9 +1,9 @@
 ---
 name: fengqi-linglonggu-sd2-prompt-v2
-description: "《风起玲珑骨》专用 Seedance 2.0 / 2.5 视频提示词编译器。当用户提到风起玲珑骨、剧中人物（玲珑、帝鸿、崔珏、燕十三、司徒陌、黎奴、小奎、南星、雪里、庚辰、颜袖、龙英等）、1-24 集剧情，或要为本剧生成/返修 Seedance、即梦视频提示词时使用。涵盖：24 集定稿剧本反查、人物表演路由、微表情与动作动力链、叙事灯光设计、逐镜摄影头部、2.0/2.5 目标模型编译、瑞宝PRO 六段交付包、生成视频返修与逐字冻结局部改写。不要把本项目正典套用到其他古装剧或通用 Seedance 工作上。"
+description: "《风起玲珑骨》专用 Seedance 2.0 / 2.5 视频提示词编译器。当用户提到风起玲珑骨、剧中人物（玲珑、帝鸿、崔珏、燕十三、司徒陌、黎奴、小奎、南星、雪里、庚辰、颜袖、龙英等）、1-24 集剧情，或要为本剧生成/返修 Seedance、即梦视频提示词时使用。涵盖：24 集定稿剧本反查、人物表演路由、微表情与动作动力链、叙事灯光设计、逐镜摄影头部、2.0/2.5 目标模型编译、瑞宝PRO 六段交付包、生成视频返修与逐字冻结局部改写，以及本场场记的建立、读取、更新与持续维护。不要把本项目正典套用到其他古装剧或通用 Seedance 工作上。"
 ---
 
-# 风起玲珑骨-SD2.0/2.5提示词-V2.3
+# 风起玲珑骨-SD2.0/2.5提示词-V2.4
 
 ## Self-Contained Operation
 
@@ -13,11 +13,21 @@ This skill is fully self-contained. It owns every stage of the workflow itself: 
 
 This skill is eligible for generation only when the request is identified as `风起玲珑骨`. Explicit invocation may also select it for maintenance or comparison, but naming it does not inject project canon into unrelated generation. For unrelated period drama, generic 逐玉 styling, or generic Seedance work, stop and say so plainly rather than applying project canon.
 
+## 场记任务路由 / Scene Notes
+
+For requests to 建立场记、启用场记、读取场记、更新场记、保存这场的要求、继续本场、持续维护场记, or when relevant scene memory is already enabled, read [references/scene-notes.md](references/scene-notes.md). Create only on explicit scene-saving authorization, using [references/scene-notes-template.md](references/scene-notes-template.md); the runtime file is 场次记忆.md in the user's current scene project, never in this skill, plugin repository, references, or global memory. This is a self-contained file-based capability and does not require the reference plugin.
+
+Classify a memory-only request before the prompt-repair preflight below: editing a memory entry does not require a complete generator prompt and does not trigger target-model resolution, character-canon lookup unless needed, the six-section package, or prompt linting. For a combined memory and prompt request, fulfill both authorized parts while retaining all existing generator rules. Ordinary generation does not enable persistent writing; existing memory defaults to explicit maintenance unless the user enabled continuous maintenance for this scene.
+
+Current explicit user facts override old scene notes. Inherit only active entries for the same scene, shot/story point and branch. Keep approved design separate from observed footage, record adopted versions and concrete shot junctions, and label unobserved outcomes as expected/unverified. Notes or summaries never substitute for the exact baseline required by preservation-first prompt repair. Read an adopted full prompt file verbatim when available; never reconstruct its frozen text from notes. In patch-only replies, emit only the requested replacement span; authorized scene-note maintenance adds no wrapper or report to that reply.
+
+Memory-only delivery reports the actual file path and changes after a successful save/readback. Prompt delivery keeps the original 瑞宝PRO six-section / nine-heading / 5000-character contract; scene notes do not import the reference plugin's four-block format. No runtime scene record is created as part of installing or upgrading this plugin.
+
 ## Preservation-First Local Repair Precedence
 
 Before project lookup, media inspection, camera normalization, or ready-state packaging, detect an explicit scope lock such as `只修改`, `仅修改`, `只调整`, `仅调整`, `其他不改`, `其余不变`, `保持其他内容不变`, `不要改别的`, `只改镜头X`, or an equivalent target/freeze instruction.
 
-- Obtain the exact complete baseline from the current message or exact task history. Never reconstruct it from a summary, project canon, memory, or a previous diagnosis. If it is unavailable, stop with `缺少可逐字核对的完整基线提示词，请粘贴上一版完整提示词`.
+- Obtain the exact complete baseline from the current message, exact task history, or a user-adopted complete prompt file read verbatim. Never reconstruct it from a summary, project canon, memory, or a previous diagnosis. If it is unavailable, stop with `缺少可逐字核对的完整基线提示词，请粘贴上一版完整提示词`.
 - Treat only the explicitly named shot, section, sentence, or clause as editable. Freeze every other character, heading, reference role, camera block, timing line, continuity rule, negative constraint, punctuation, whitespace, and line break.
 - Load project references and inspect returned media only as needed to solve the allowed span. Do not use newly loaded canon, camera, lighting, acting, reference-role, or preflight preferences to normalize frozen text.
 - If the allowed edit changes a supplied reference role, camera view, focal rule, blocking, identity, prop, first frame, or lighting dependency, update only that role or requirement inside the authorized span. Never rewrite frozen text merely to make an old reference appear camera-matched.

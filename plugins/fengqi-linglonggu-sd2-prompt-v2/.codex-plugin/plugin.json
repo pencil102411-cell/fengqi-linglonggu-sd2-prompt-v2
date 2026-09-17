@@ -1,7 +1,7 @@
 {
   "name": "fengqi-linglonggu-sd2-prompt-v2",
-  "version": "2.3.0",
-  "description": "《风起玲珑骨》专用 Seedance 2.0 / 2.5 影视提示词编译器，含24集剧本、人物表演、摄影灯光、分镜与局部返修。",
+  "version": "2.4.0",
+  "description": "《风起玲珑骨》专用 Seedance 2.0 / 2.5 影视提示词编译器，含24集剧本、人物表演、摄影灯光、分镜与局部返修。 支持本场场记、采用版本管理与跨镜连续性续做。",
   "author": {
     "name": "pencil102411-cell",
     "url": "https://github.com/pencil102411-cell"
@@ -15,13 +15,15 @@
     "video",
     "cinematography",
     "chinese",
-    "xianxia"
+    "xianxia",
+    "scene-notes",
+    "continuity"
   ],
   "skills": "./skills/",
   "interface": {
-    "displayName": "风起玲珑骨 · 影视提示词 V2.3",
-    "shortDescription": "24集剧本反查，人物表演与镜头设计，Seedance 2.0 / 2.5 提示词",
-    "longDescription": "面向《风起玲珑骨》的完整影视提示词工作流：剧本证据检索、人物状态核验、微表情与动作动力链、摄影灯光、连续多镜、5000字内完整提示词和逐字冻结局部返修。包含原始剧本PDF、逐集文本、检索索引及Python检查脚本。",
+    "displayName": "风起玲珑骨 · 影视提示词与场记 V2.4",
+    "shortDescription": "24集剧本反查、影视提示词与本场场记，记录采用版本和跨镜接点",
+    "longDescription": "面向《风起玲珑骨》的完整影视提示词工作流：剧本证据检索、人物状态核验、微表情与动作动力链、摄影灯光、连续多镜、5000字内完整提示词和逐字冻结局部返修。包含原始剧本PDF、逐集文本、检索索引及Python检查脚本。 场记按授权保存于当前场次项目，分别记录设计目标和成片观察，支持明确维护、持续维护、暂停与续做；不自动同步到插件仓库。",
     "developerName": "pencil102411-cell",
     "category": "Productivity",
     "capabilities": [
@@ -32,7 +34,7 @@
     "defaultPrompt": [
       "为《风起玲珑骨》提供的剧情编写 Seedance 2.5 连续分镜提示词。",
       "核对《风起玲珑骨》角色在指定集数中的身份、关系和表演状态。",
-      "只修改指定镜头的动作，逐字保留其余提示词。"
+      "为《风起玲珑骨》当前场次建立场记，记录已确认要求、采用版本和镜头接点。"
     ],
     "brandColor": "#2D6A5F"
   }
