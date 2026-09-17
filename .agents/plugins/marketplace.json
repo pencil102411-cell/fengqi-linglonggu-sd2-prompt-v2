@@ -1,0 +1,20 @@
+{
+  "name": "fengqi-linglonggu",
+  "interface": {
+    "displayName": "风起玲珑骨 · Codex 插件"
+  },
+  "plugins": [
+    {
+      "name": "fengqi-linglonggu-sd2-prompt-v2",
+      "source": {
+        "source": "local",
+        "path": "./plugins/fengqi-linglonggu-sd2-prompt-v2"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
