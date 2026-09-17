@@ -1,0 +1,136 @@
+name: Validate and publish Codex plugin
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "fengqi-linglonggu-sd2-prompt-v2/**"
+      - "plugins/**"
+      - ".agents/plugins/marketplace.json"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: codex-plugin-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Assemble and validate plugin in GitHub
+        id: package
+        shell: python
+        run: |
+          import hashlib, json, os, re, shutil, subprocess, zipfile
+          from pathlib import Path
+          name = "fengqi-linglonggu-sd2-prompt-v2"
+          root = Path.cwd()
+          plugin = root / 'plugins' / name
+          skill = plugin / 'skills' / name
+          source = root / name
+          bootstrapping = source.is_dir()
+          expected = ["SKILL.md","agents/openai.yaml","references/acting-performance.md","references/body-action-and-contact-grammar.md","references/camera-parameter-presets.md","references/canglanjue-episodes-01-36-visual-grammar.md","references/capability-regression-checklist.md","references/character-performance-bible.md","references/direct-multi-reference-video-template.md","references/eastern-fantasy-tv-visual-master.md","references/episode-script-retrieval.md","references/microexpression-acting-grammar.md","references/narrative-lighting-design.md","references/project-craft-defaults.md","references/seedance-2x-generator-translation.md","references/seedance-assembly.md","references/video-repair-loop.md","references/xianxia-action-grammar.md","references/xianxia-vfx-grammar.md","references/zhuyu-episodes-01-10-cinematography.md","references/scripts/corpus-manifest.json","references/scripts/scene-index.jsonl","references/scripts/episodes/episode-01.txt","references/scripts/episodes/episode-02.txt","references/scripts/episodes/episode-03.txt","references/scripts/episodes/episode-04.txt","references/scripts/episodes/episode-05.txt","references/scripts/episodes/episode-06.txt","references/scripts/episodes/episode-07.txt","references/scripts/episodes/episode-08.txt","references/scripts/episodes/episode-09.txt","references/scripts/episodes/episode-10.txt","references/scripts/episodes/episode-11.txt","references/scripts/episodes/episode-12.txt","references/scripts/episodes/episode-13.txt","references/scripts/episodes/episode-14.txt","references/scripts/episodes/episode-15.txt","references/scripts/episodes/episode-16.txt","references/scripts/episodes/episode-17.txt","references/scripts/episodes/episode-18.txt","references/scripts/episodes/episode-19.txt","references/scripts/episodes/episode-20.txt","references/scripts/episodes/episode-21.txt","references/scripts/episodes/episode-22.txt","references/scripts/episodes/episode-23.txt","references/scripts/episodes/episode-24.txt","references/scripts/originals/《风起玲珑骨》第1-5集【0628 定稿V2】TO AI组(1).pdf","references/scripts/originals/《风起玲珑骨》第11-15集【0705 定稿版 TO AI组】(1).pdf","references/scripts/originals/《风起玲珑骨》第16-24集【0705 定稿版 TO AI组】(1).pdf","references/scripts/originals/《风起玲珑骨》第6-10集【0628 定稿】TO AI组(1).pdf","scripts/build_script_corpus.py","scripts/lint_prompt.py","scripts/locate_script_passage.py","scripts/test_lint_prompt.py","scripts/fixtures/known-bad.txt","scripts/fixtures/known-good.txt"]
+          if bootstrapping:
+              assert not skill.exists(), 'Refusing to overwrite an existing skill'
+              assert all((source / p).is_file() for p in expected), 'Source upload incomplete'
+              skill.parent.mkdir(parents=True, exist_ok=True)
+              shutil.move(str(source), str(skill))
+          assert skill.is_dir(), 'Upload the complete skill folder before running this workflow'
+          for cache in list(skill.rglob('__pycache__')):
+              assert cache.resolve().is_relative_to(skill.resolve())
+              shutil.rmtree(cache)
+          for p in expected:
+              assert (skill / p).is_file(), f'Missing required resource: {p}'
+          manifest_path = plugin / '.codex-plugin' / 'plugin.json'
+          if not manifest_path.exists():
+              manifest_path.parent.mkdir(parents=True, exist_ok=True)
+              manifest_path.write_text(json.dumps(json.loads("{\"name\":\"fengqi-linglonggu-sd2-prompt-v2\",\"version\":\"2.3.0\",\"description\":\"《风起玲珑骨》专用 Seedance 2.0 / 2.5 影视提示词编译器，含24集剧本、人物表演、摄影灯光、分镜与局部返修。\",\"author\":{\"name\":\"pencil102411-cell\",\"url\":\"https://github.com/pencil102411-cell\"},\"homepage\":\"https://github.com/pencil102411-cell/fengqi-linglonggu-sd2-prompt-v2\",\"repository\":\"https://github.com/pencil102411-cell/fengqi-linglonggu-sd2-prompt-v2\",\"license\":\"MIT\",\"keywords\":[\"codex\",\"seedance\",\"video\",\"cinematography\",\"chinese\",\"xianxia\"],\"skills\":\"./skills/\",\"interface\":{\"displayName\":\"风起玲珑骨 · 影视提示词 V2.3\",\"shortDescription\":\"24集剧本反查，人物表演与镜头设计，Seedance 2.0 / 2.5 提示词\",\"longDescription\":\"面向《风起玲珑骨》的完整影视提示词工作流：剧本证据检索、人物状态核验、微表情与动作动力链、摄影灯光、连续多镜、5000字内完整提示词和逐字冻结局部返修。包含原始剧本PDF、逐集文本、检索索引及Python检查脚本。\",\"developerName\":\"pencil102411-cell\",\"category\":\"Productivity\",\"capabilities\":[\"Read\",\"Write\"],\"websiteURL\":\"https://github.com/pencil102411-cell/fengqi-linglonggu-sd2-prompt-v2\",\"defaultPrompt\":[\"为《风起玲珑骨》提供的剧情编写 Seedance 2.5 连续分镜提示词。\",\"核对《风起玲珑骨》角色在指定集数中的身份、关系和表演状态。\",\"只修改指定镜头的动作，逐字保留其余提示词。\"],\"brandColor\":\"#2D6A5F\"}}"), ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          market_path = root / '.agents' / 'plugins' / 'marketplace.json'
+          if not market_path.exists():
+              market_path.parent.mkdir(parents=True, exist_ok=True)
+              market_path.write_text(json.dumps(json.loads("{\"name\":\"fengqi-linglonggu\",\"interface\":{\"displayName\":\"风起玲珑骨 · Codex 插件\"},\"plugins\":[{\"name\":\"fengqi-linglonggu-sd2-prompt-v2\",\"source\":{\"source\":\"local\",\"path\":\"./plugins/fengqi-linglonggu-sd2-prompt-v2\"},\"policy\":{\"installation\":\"AVAILABLE\",\"authentication\":\"ON_INSTALL\"},\"category\":\"Productivity\"}]}"), ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          if bootstrapping:
+              (root / 'README.md').write_text("# 风起玲珑骨 · Seedance 2.0 / 2.5 影视提示词插件\n\n《风起玲珑骨》专用的 Codex 插件，版本 **2.3.0**。从人物、场景、剧本或文字分镜直接编译横屏真人影视感视频提示词。\n\n## 能做什么\n\n- 反查 1—24 集定稿剧本，核验人物身份、关系、知情范围和当前状态。\n- 设计微表情、视线、对白、动作接触与连续表演。\n- 组织逐镜摄影参数、叙事灯光、仙侠特效和武打动作。\n- 按 Seedance 2.0 或 2.5 目标输出瑞宝 PRO 六段交付包；完整可复制提示词不超过 5000 字。\n- 分析生成结果并返修；指定局部修改时冻结其余原文。\n\n本插件只适用于《风起玲珑骨》，不会把本剧正典套用到其他项目。它生成和检查提示词，不直接调用即梦或视频生成 API。\n\n## 安装到 Codex\n\n在支持插件的 Codex CLI 中执行：\n\n```sh\ncodex plugin marketplace add pencil102411-cell/fengqi-linglonggu-sd2-prompt-v2\ncodex plugin add fengqi-linglonggu-sd2-prompt-v2@fengqi-linglonggu\n```\n\n安装后在 Codex 新建任务，明确调用本插件或 skill，并提供剧情、目标模型和实际参考素材。以上命令供使用者安装，本仓库的发布过程不要求在发布者电脑上安装插件。\n\n也可以从 [Releases](https://github.com/pencil102411-cell/fengqi-linglonggu-sd2-prompt-v2/releases) 下载插件 ZIP。ZIP 根目录直接包含 `.codex-plugin/plugin.json` 与 `skills/`。\n\n## 使用示例\n\n```text\n使用 fengqi-linglonggu-sd2-prompt-v2，为《风起玲珑骨》以下剧情生成 Seedance 2.5 提示词。\n剧情：[粘贴剧情或文字分镜]\n角色：[角色及当前状态]\n参考素材：[说明实际提供的图片或视频]\n要求：[时长、镜头、对白与需要保留的细节]\n```\n\n局部返修请提供上一版完整提示词，再指定允许修改的镜头或段落，例如“只修改镜头 2 的转身动作，其余逐字不变”。\n\n## 包含的资料\n\n- 原始 skill 与参考规则，保留原文。\n- 4 份定稿剧本 PDF，共覆盖 24 集；24 份逐集文本、剧本索引与来源校验清单。\n- 剧本检索、语料构建、提示词检查脚本及回归样例。\n\n```text\n.agents/plugins/marketplace.json\nplugins/fengqi-linglonggu-sd2-prompt-v2/\n  .codex-plugin/plugin.json\n  skills/fengqi-linglonggu-sd2-prompt-v2/\n    SKILL.md\n    agents/openai.yaml\n    references/\n    scripts/\n```\n\n## 检查与维护\n\n普通提示词使用无需额外 Python 依赖。检索与检查脚本使用 Python 3.10+；仅重新从 PDF 构建语料时需要 `pypdf`。\n\n```sh\npython -m unittest discover -s plugins/fengqi-linglonggu-sd2-prompt-v2/skills/fengqi-linglonggu-sd2-prompt-v2/scripts -p \"test_*.py\" -v\n```\n\nGitHub Actions 在云端完成目录整理、插件与资源完整性检查、PDF 哈希校验、回归测试及 ZIP 打包。发布任务可在 Actions 页面手动运行。已有版本的 Release 保持不变；更新发布需先修改插件版本。\n\n## 开源许可\n\n本仓库采用 [MIT License](LICENSE)。保留许可证和版权声明后，可以使用、修改和分发。影视作品名称用于说明参考分析来源，不代表与相关作品、Seedance 或 OpenAI 存在官方合作关系。\n", encoding='utf-8')
+              (root / '.gitignore').write_text('__pycache__/\n*.py[cod]\n.venv/\ndist/\n', encoding='utf-8')
+          for filename in ['LICENSE', 'README.md']:
+              shutil.copyfile(root / filename, plugin / filename)
+          manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+          assert manifest['name'] == plugin.name == name
+          assert re.fullmatch(r'[0-9]+[.][0-9]+[.][0-9]+', manifest['version'])
+          assert manifest['author']['name'] and manifest['description']
+          assert manifest['skills'] == './skills/' and (plugin / 'skills').is_dir()
+          assert manifest['interface']['displayName'] and manifest['interface']['shortDescription']
+          assert len(manifest['interface']['defaultPrompt']) <= 3
+          assert all(len(x) <= 128 for x in manifest['interface']['defaultPrompt'])
+          assert '[TODO:' not in manifest_path.read_text(encoding='utf-8')
+          market = json.loads(market_path.read_text(encoding='utf-8'))
+          entry = next(x for x in market['plugins'] if x['name'] == name)
+          assert (root / entry['source']['path']).resolve() == plugin.resolve()
+          assert entry['policy']['installation'] == 'AVAILABLE'
+          assert entry['policy']['authentication'] == 'ON_INSTALL'
+          assert entry['category'] == 'Productivity'
+          text = (skill / 'SKILL.md').read_text(encoding='utf-8-sig')
+          assert text.startswith('---\n') and f'name: {name}' in text.split('---', 2)[1]
+          for link in re.findall(r'\]\(([^)]+)\)', text):
+              if not re.match(r'^[a-zA-Z]+:|^#', link):
+                  target = skill / link.split('#', 1)[0]
+                  assert target.exists(), f'Broken SKILL.md reference: {link}'
+          corpus = skill / 'references' / 'scripts'
+          corpus_manifest = json.loads((corpus / 'corpus-manifest.json').read_text(encoding='utf-8-sig'))
+          assert len(list((corpus / 'episodes').glob('episode-*.txt'))) == 24
+          assert len(list((corpus / 'originals').glob('*.pdf'))) == 4
+          for item in corpus_manifest['sources']:
+              pdf = corpus / 'originals' / item['file']
+              assert pdf.stat().st_size == item['bytes'], f'PDF size mismatch: {pdf.name}'
+              assert hashlib.sha256(pdf.read_bytes()).hexdigest().upper() == item['sha256'].upper(), f'PDF hash mismatch: {pdf.name}'
+          for line in (corpus / 'scene-index.jsonl').read_text(encoding='utf-8-sig').splitlines():
+              json.loads(line)
+          subprocess.run(['python', '-B', '-m', 'unittest', 'discover', '-s', str(skill / 'scripts'), '-p', 'test_*.py', '-v'], check=True)
+          print(f'Validated {len(expected)} source files, 24 episodes, 4 PDF hashes, plugin manifest, marketplace, links and regression tests.')
+          version = manifest['version']
+          dist = root / 'dist'
+          dist.mkdir(exist_ok=True)
+          archive = dist / f'{name}-{version}.zip'
+          with zipfile.ZipFile(archive, 'w', compression=zipfile.ZIP_DEFLATED) as z:
+              for file in sorted(plugin.rglob('*')):
+                  if file.is_file() and '__pycache__' not in file.parts and file.suffix != '.pyc':
+                      z.write(file, file.relative_to(plugin).as_posix())
+          with zipfile.ZipFile(archive) as z:
+              assert z.testzip() is None
+              assert '.codex-plugin/plugin.json' in z.namelist()
+              assert f'skills/{name}/SKILL.md' in z.namelist()
+          checksum = hashlib.sha256(archive.read_bytes()).hexdigest()
+          (dist / 'SHA256SUMS.txt').write_text(f'{checksum}  {archive.name}\n', encoding='utf-8')
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write(f'version={version}\n')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as output:
+              output.write(f'## Plugin verified\n\n- Version: {version}\n- Source files: {len(expected)}\n- Episodes: 24\n- Original PDF hashes: 4 passed\n- Regression tests: passed\n- ZIP integrity: passed\n')
+      - name: Save packaged repository layout
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "Package Codex plugin with marketplace and documentation"
+            git push origin HEAD:main
+          fi
+      - name: Publish versioned ZIP
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.package.outputs.version }}
+        run: |
+          TAG="v$VERSION"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; leaving published assets unchanged."
+          else
+            gh release create "$TAG" dist/*.zip dist/SHA256SUMS.txt --target "$(git rev-parse HEAD)" --title "风起玲珑骨 Codex 插件 $TAG" --notes "包含完整 skill、24 集剧本、插件清单、安装说明。已通过资源完整性、4 份 PDF SHA-256、提示词回归测试和 ZIP 完整性检查。"
+          fi
